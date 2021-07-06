@@ -14,6 +14,20 @@ func printInsertionPoint() {
     print("-> ", terminator: "")
 }
 
+// From: https://stackoverflow.com/questions/25006235/how-to-benchmark-swift-code-execution
+func printTimeElapsedWhenRunningCode(title:String, operation:()->()) {
+    let startTime = CFAbsoluteTimeGetCurrent()
+    operation()
+    let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+    print("Time elapsed for \(title): \(timeElapsed) s.")
+}
+
+func timeElapsedInSecondsWhenRunningCode(operation: ()->()) -> Double {
+    let startTime = CFAbsoluteTimeGetCurrent()
+    operation()
+    let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
+    return Double(timeElapsed)
+}
 
 //MARK: Classes
 enum SolveStates {
@@ -96,23 +110,36 @@ class Board {
         return emptyCells.count > 0
     }
 
-    func printBoard() {
+    func toString() -> String {
+        var output = ""
         for (i, row) in rows.enumerated() {
             if i % 3 == 0 {
-                print("+===+===+===+===+===+===+===+===+===+")
+                output += "+===+===+===+===+===+===+===+===+===+\n"
             } else {
-                print("+---+---+---+---+---+---+---+---+---+")
+                output += "+---+---+---+---+---+---+---+---+---+\n"
             }
-            print("/", terminator: "")
+            output += "/"
             for (j, cell) in row.cells.enumerated() {
                 let colDelimiter = j % 3 == 2 ? "/" : "|"
-                print(" \(cell.valueString) \(colDelimiter)", terminator: "")
+                output += " \(cell.valueString) \(colDelimiter)"
             }
-            print()
+            output += "\n"
         }
-        print("+===+===+===+===+===+===+===+===+===+")
+        output += "+===+===+===+===+===+===+===+===+===+"
+        
+        return output
+    }
+    
+    func printBoard() {
+        print(toString())
     }
 
+    func printRows() {
+        for row in rows {
+            print(row.cellValues)
+        }
+    }
+    
     func printCols() {
         for col in cols {
             print(col.cellValues)
@@ -203,33 +230,45 @@ class Cell: Equatable {
 }
 
 //MARK: Initialization
-var board = Board()
-for (i, row) in board.rows.enumerated() {
-    print("Row \(i + 1): Please enter the numbers from (L -> R). Mark unknown cells as '*'.")
-    printInsertionPoint()
+func createBoard(from boardString: String?) -> Board {
+    let shouldReadInput = boardString == nil
+    var boardStrings = [String.SubSequence]()
+    
+    let board = Board()
+    var rowString: String
+    if !shouldReadInput { boardStrings = boardString!.split(separator: "\n") }
+    for (i, row) in board.rows.enumerated() {
+        if shouldReadInput {
+            print("Row \(i + 1): Please enter the numbers from (L -> R). Mark unknown cells as '*'.")
+            printInsertionPoint()
+            rowString = readLine()!
+        } else {
+            rowString = String(boardStrings[i])
+        }
+        
+        while rowString.count != 9 {
+            print("You must eneter 1-9 or * for each cell in the row.")
+            printInsertionPoint()
+            rowString = readLine()!
+        }
 
-    var rowString = readLine()!
-    while rowString.count != 9 {
-        print("You must eneter 1-9 or * for each cell in the row.")
-        printInsertionPoint()
-        rowString = readLine()!
-    }
+        let cellStrings = Array(rowString)
 
-    let cellStrings = Array(rowString)
-
-    for (j, cell) in row.cells.enumerated() {
-        cell.currentValue = cellStrings[j].wholeNumberValue
-        if cell.currentValue != nil {
-//            cell.possibleValues = [cell.currentValue!]
-            cell.locked = true
-            cell.removeCurrentValueFromUnusedValues()
-            board.removeFromEmptyCells(cell)
+        for (j, cell) in row.cells.enumerated() {
+            cell.currentValue = cellStrings[j].wholeNumberValue
+            if cell.currentValue != nil {
+                cell.locked = true
+                cell.removeCurrentValueFromUnusedValues()
+                board.removeFromEmptyCells(cell)
+            }
         }
     }
+    
+    return board
 }
 
-//MARK: Solving
-func solveNextCell() -> Bool {
+
+@discardableResult func solveNextCell(forBoard board: Board) -> Bool {
     let currentCell = board.emptyCells.removeFirst()
     board.attemptedCells.append(currentCell)
 
@@ -240,7 +279,7 @@ func solveNextCell() -> Bool {
         currentCell.removeCurrentValueFromUnusedValues()
         
         if board.hasEmptyCells() {
-            if solveNextCell() == true { return true }
+            if solveNextCell(forBoard: board) == true { return true }
         } else if board.isSolved() == .solved {
             return true
         }
@@ -254,5 +293,34 @@ func solveNextCell() -> Bool {
     return false
 }
 
-solveNextCell()
-board.printBoard()
+let n = 1000
+let inputString = "1****87**\n96***3**8\n78****5**\n**189****\n4***1***5\n*****7***\n********2\n***5***91\n**82****3"
+var boardString = ""
+var times = [Double]()
+
+for i in 1...n {
+    if i % (n/10) == 0 { print("\(Double(i*100)/Double(n))%...") }
+    let board = createBoard(from: inputString)
+    let elapsedTime = timeElapsedInSecondsWhenRunningCode {
+        solveNextCell(forBoard: board)
+    }
+    times.append(elapsedTime)
+    
+    if i == n { boardString = board.toString() }
+}
+
+let totalTime = times.reduce(0, +)
+let averageTime = totalTime/Double(times.count)
+let minTime = times.min()!
+let maxTime = times.max()!
+
+print("\n\n\n")
+for (i, time) in times.enumerated() {
+    print("Run \(i+1))\t\(time)s")
+}
+print("----------------------------------------------")
+print("Max time:   \(maxTime)s")
+print("Min time:   \(minTime)s")
+print("Total time: \(totalTime)s")
+print("Avg time:   \(averageTime)s")
+print("\n\n\(boardString)")
