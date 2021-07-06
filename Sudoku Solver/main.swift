@@ -32,7 +32,7 @@ class Board {
 
     init() {
         for i in 0..<81 {
-            let cell = Cell(board: board, index: i)
+            let cell = Cell(board: self, index: i)
             allCells.append(cell)
             emptyCells.append(cell)
         }
@@ -86,15 +86,6 @@ class Board {
         return .solved
     }
 
-    func addToEmptyCells(_ cell: Cell) {
-        if emptyCells.count == 0 { emptyCells.append(cell) }
-        if cell.index > emptyCells.last!.index { emptyCells.append(cell) }
-
-        var arrayIndex = 0
-        while cell.index > emptyCells[arrayIndex].index { arrayIndex += 1 }
-        emptyCells.insert(cell, at: arrayIndex)
-    }
-
     func removeFromEmptyCells(_ cell: Cell) {
         if let itemIndex = emptyCells.firstIndex(of: cell) {
             emptyCells.remove(at: itemIndex)
@@ -102,7 +93,7 @@ class Board {
     }
 
     func hasEmptyCells() -> Bool {
-        return emptyCells.count == 0
+        return emptyCells.count > 0
     }
 
     func printBoard() {
@@ -119,7 +110,7 @@ class Board {
             }
             print()
         }
-        print("+---+---+---+---+---+---+---+---+---+")
+        print("+===+===+===+===+===+===+===+===+===+")
     }
 
     func printCols() {
@@ -176,7 +167,7 @@ class Cell: Equatable {
 
     var currentValue: Int?
     var isEmpty: Bool { currentValue == nil }
-    var possibleValues: Set<Int>
+    var possibleValues = Set<Int>()
     var attemptedValues = [Int]()
 //    var possibleValues = oneToNine
     var locked = false
@@ -197,6 +188,13 @@ class Cell: Equatable {
         row.unusedValues.remove(currentValue!)
         col.unusedValues.remove(currentValue!)
         house.unusedValues.remove(currentValue!)
+    }
+    
+    func addCurrentValueToUnusedValues() {
+        if currentValue == nil { return }
+        row.unusedValues.insert(currentValue!)
+        col.unusedValues.insert(currentValue!)
+        house.unusedValues.insert(currentValue!)
     }
 
     func resetPossibleValues() {
@@ -231,14 +229,30 @@ for (i, row) in board.rows.enumerated() {
 }
 
 //MARK: Solving
-func solveNextCell() {
+func solveNextCell() -> Bool {
     let currentCell = board.emptyCells.removeFirst()
     board.attemptedCells.append(currentCell)
 
-    var possibleVals = Array(currentCell.possibleValues)
+    currentCell.resetPossibleValues()
+    let possibleVals = Array(currentCell.possibleValues)
     for value in possibleVals {
         currentCell.currentValue = value
         currentCell.removeCurrentValueFromUnusedValues()
+        
+        if board.hasEmptyCells() {
+            if solveNextCell() == true { return true }
+        } else if board.isSolved() == .solved {
+            return true
+        }
+
+        currentCell.addCurrentValueToUnusedValues()
     }
-    if board.isSolved() == .solved { return }
+
+    currentCell.currentValue = nil
+    board.attemptedCells.removeLast()
+    board.emptyCells.insert(currentCell, at: 0)
+    return false
 }
+
+solveNextCell()
+board.printBoard()
